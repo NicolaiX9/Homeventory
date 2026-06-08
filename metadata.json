@@ -1,0 +1,6 @@
+{
+  "name": "Homeventory",
+  "description": "Sistema web para la venta y gestión de inventario de muebles y artículos de hogar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
