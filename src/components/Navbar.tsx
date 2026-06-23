@@ -56,20 +56,22 @@ export default function Navbar({
             Catálogo
           </button>
           
-          <button
-            onClick={() => {
-              onViewChange('admin');
-              setProfileOpen(false);
-            }}
-            className={`font-sans font-medium text-sm transition-all pb-1 hover:text-[#1a4d43] ${
-              currentView === 'admin'
-                ? 'text-[#1a4d43] border-b-2 border-[#1a4d43] font-semibold'
-                : 'text-gray-500'
-            }`}
-            id="nav-btn-admin"
-          >
-            Administración
-          </button>
+          {user.isAuthenticated && user.role === 'Administrador' && (
+            <button
+              onClick={() => {
+                onViewChange('admin');
+                setProfileOpen(false);
+              }}
+              className={`font-sans font-medium text-sm transition-all pb-1 hover:text-[#1a4d43] ${
+                currentView === 'admin'
+                  ? 'text-[#1a4d43] border-b-2 border-[#1a4d43] font-semibold'
+                  : 'text-gray-500'
+              }`}
+              id="nav-btn-admin"
+            >
+              Administración
+            </button>
+          )}
         </nav>
 
         {/* Actions */}
@@ -136,16 +138,18 @@ export default function Navbar({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    onViewChange('admin');
-                    setProfileOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  Panel administración
-                </button>
+                {user.role === 'Administrador' && (
+                  <button
+                    onClick={() => {
+                      onViewChange('admin');
+                      setProfileOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Panel administración
+                  </button>
+                )}
 
                 <button
                   onClick={() => {

@@ -12,6 +12,7 @@ export default function AuthModal({ onClose, onLoginSuccess }: AuthModalProps) {
   const [email, setEmail] = React.useState('');
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
   const [role, setRole] = React.useState<'Vendedor' | 'Administrador' | 'Cliente'>('Cliente');
   
   // Validation messages state
@@ -51,7 +52,7 @@ export default function AuthModal({ onClose, onLoginSuccess }: AuthModalProps) {
     setError(null);
 
     // Registration validation rules
-    if (!username || !email || !password) {
+    if (!username || !email || !password || !confirmPassword) {
       setError('Por favor complete todos los campos obligatorios.');
       return;
     }
@@ -61,6 +62,10 @@ export default function AuthModal({ onClose, onLoginSuccess }: AuthModalProps) {
     }
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres por seguridad.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden (consistencia de la contraseña).');
       return;
     }
 
@@ -175,6 +180,21 @@ export default function AuthModal({ onClose, onLoginSuccess }: AuthModalProps) {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:border-[#1a4d43] focus:ring-1 focus:ring-[#1a4d43] outline-none"
                   placeholder="Mínimo 6 caracteres"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1" htmlFor="reg-confirm-pass">
+                  Confirmar Contraseña <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  id="reg-confirm-pass"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg p-2.5 text-sm focus:border-[#1a4d43] focus:ring-1 focus:ring-[#1a4d43] outline-none"
+                  placeholder="Repite tu contraseña"
                   required
                 />
               </div>

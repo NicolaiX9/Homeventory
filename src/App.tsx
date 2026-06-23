@@ -7,7 +7,7 @@ import CartView from './components/CartView';
 import AdminView from './components/AdminView';
 import { getStoredProducts, saveProducts } from './data';
 import { Product, CartItem, User } from './types';
-import { Sparkles, Check, CheckCircle, ShoppingBag, X, Home } from 'lucide-react';
+import { Sparkles, Check, CheckCircle, ShoppingBag, X, Home, AlertTriangle } from 'lucide-react';
 
 export default function App() {
   // Products storage source of truth
@@ -37,6 +37,9 @@ export default function App() {
     itemsCount: number;
   } | null>(null);
 
+  const [criticalAlertOpen, setCriticalAlertOpen] = React.useState(false);
+  const [hasShownCriticalAlert, setHasShownCriticalAlert] = React.useState(false);
+
   // Load products & cart on mount
   React.useEffect(() => {
     setProducts(getStoredProducts());
@@ -50,6 +53,17 @@ export default function App() {
       }
     }
   }, []);
+
+  // Trigger low stock warning pop-up automatically for Admin users
+  React.useEffect(() => {
+    if (user && user.isAuthenticated && user.role === 'Administrador' && !hasShownCriticalAlert && products.length > 0) {
+      const lowStockProducts = products.filter((p) => p.stock < 5);
+      if (lowStockProducts.length > 0) {
+        setCriticalAlertOpen(true);
+        setHasShownCriticalAlert(true);
+      }
+    }
+  }, [user, products, hasShownCriticalAlert]);
 
   // Save cart changes
   const saveCartToStorage = (updatedCart: CartItem[]) => {
@@ -101,6 +115,23 @@ export default function App() {
       setCurrentView('catalog');
     }
     showToast('¡Producto eliminado del inventario!');
+  };
+
+  // Delete Multiple Products (Admin Action)
+  const handleDeleteProducts = (productIds: string[]) => {
+    const updated = products.filter((p) => !productIds.includes(p.id));
+    setProducts(updated);
+    saveProducts(updated);
+    
+    // Clear out from cart if deleted
+    const filteredCart = cart.filter((item) => !productIds.includes(item.productId));
+    saveCartToStorage(filteredCart);
+
+    if (selectedProduct && productIds.includes(selectedProduct.id)) {
+      setSelectedProduct(null);
+      setCurrentView('catalog');
+    }
+    showToast('Producto eliminado del inventario');
   };
 
   // Add to Cart Action (with selective quantities)
@@ -267,12 +298,32 @@ export default function App() {
         )}
 
         {currentView === 'admin' && (
-          <AdminView
-            products={products}
-            onAddProduct={handleAddProduct}
-            onUpdateProduct={handleUpdateProduct}
-            onDeleteProduct={handleDeleteProduct}
-          />
+          user.isAuthenticated && user.role === 'Administrador' ? (
+            <AdminView
+              products={products}
+              onAddProduct={handleAddProduct}
+              onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={handleDeleteProduct}
+              onDeleteProducts={handleDeleteProducts}
+            />
+          ) : (
+            <div className="text-center py-16 bg-white border border-gray-100 rounded-3xl p-6 md:p-8 max-w-md mx-auto space-y-4 shadow-level-1 relative animate-scale-in">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-500 rounded-t-3xl"></div>
+              <div className="w-16 h-16 bg-red-50 text-red-650 rounded-full flex items-center justify-center mx-auto border border-red-200">
+                <AlertTriangle className="w-8 h-8 font-black" />
+              </div>
+              <h2 className="font-display text-2xl font-black text-gray-900 leading-tight">Acceso Restringido</h2>
+              <p className="font-sans text-xs md:text-sm text-gray-500">
+                Dicha funcionalidad solo debe ser del administrador. Por favor, inicia sesión con una cuenta autorizada para acceder a estos controles.
+              </p>
+              <button
+                onClick={() => setCurrentView('catalog')}
+                className="w-full bg-[#1a4d43] hover:bg-[#00362d] text-white font-semibold text-sm py-2.5 rounded-lg transition-colors shadow-sm"
+              >
+                Volver al Catálogo
+              </button>
+            </div>
+          )
         )}
       </main>
 
@@ -340,6 +391,59 @@ export default function App() {
               id="success-modal-continue-btn"
             >
               Volver al Catálogo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {criticalAlertOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" id="low-stock-modal-overlay">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-level-2 p-6 md:p-8 text-center border border-gray-100 flex flex-col relative animate-scale-in">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-500 rounded-t-3xl"></div>
+            
+            <button
+              onClick={() => setCriticalAlertOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="Cerrar modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-16 h-16 bg-red-50 text-red-650 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-200">
+              <AlertTriangle className="w-8 h-8 font-black text-red-600" />
+            </div>
+
+            <h2 className="font-display text-2xl font-black text-gray-900 tracking-tight leading-tight">
+              Alerta de Stock Crítico
+            </h2>
+            <p className="text-sm text-gray-400 font-sans mt-2">
+              Se han detectado productos con existencias bajo el límite de seguridad (stock &lt; 5).
+            </p>
+
+            <div className="bg-red-50/50 rounded-2xl p-4 my-6 text-sm text-left border border-red-100 max-h-[180px] overflow-y-auto space-y-2">
+              <span className="text-xs font-bold text-red-800 uppercase tracking-widest block">Productos Afectados:</span>
+              {products.filter(p => p.stock < 5).map(p => (
+                <div key={p.id} className="flex justify-between items-center text-xs border-b border-red-100/40 pb-1 last:border-0 last:pb-0">
+                  <span className="font-semibold text-gray-800 truncate max-w-[200px]">{p.name}</span>
+                  <span className="font-mono text-red-700 font-bold bg-white px-2 py-0.5 rounded border border-red-200">Stock: {p.stock}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-[#1a4d43]/5 text-[#1a4d43] p-3 rounded-xl text-xs font-medium text-left mb-6 flex items-start gap-2 border border-[#1a4d43]/10">
+              <span className="text-base select-none">📧</span>
+              <div>
+                <p className="font-bold">Notificación enviada por email</p>
+                <p className="text-gray-650 leading-relaxed">Se ha despachado un correo electrónico automático de reabastecimiento a <strong>{user.email || 'administrador@homeventory.cl'}</strong>.</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setCriticalAlertOpen(false)}
+              className="w-full bg-[#1a4d43] hover:bg-[#00362d] text-white font-display font-semibold py-3 px-4 rounded-xl transition-colors shadow-md text-sm"
+              id="low-stock-modal-close-btn"
+            >
+              Entendido y Confirmar
             </button>
           </div>
         </div>

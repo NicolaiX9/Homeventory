@@ -7,6 +7,7 @@ interface AdminViewProps {
   onAddProduct: (product: Product) => void;
   onUpdateProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
+  onDeleteProducts?: (productIds: string[]) => void;
 }
 
 export default function AdminView({
@@ -14,6 +15,7 @@ export default function AdminView({
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
+  onDeleteProducts,
 }: AdminViewProps) {
   const [search, setSearch] = React.useState('');
   
@@ -33,6 +35,46 @@ export default function AdminView({
 
   const [formError, setFormError] = React.useState<string | null>(null);
   const [formSuccess, setFormSuccess] = React.useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  // Toggle selection for single item
+  const handleToggleSelect = (productId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
+    );
+  };
+
+  // Toggle selection for all queried items
+  const handleToggleSelectAll = () => {
+    const allQueriedIds = queriedProducts.map((p) => p.id);
+    const areAllSelected = allQueriedIds.length > 0 && allQueriedIds.every((id) => selectedIds.includes(id));
+
+    if (areAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allQueriedIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => {
+        const uniqueIds = new Set([...prev, ...allQueriedIds]);
+        return Array.from(uniqueIds);
+      });
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    const confirmMsg = selectedIds.length === 1 
+      ? '¿Está seguro de eliminar el producto seleccionado de la base de datos?' 
+      : `¿Está seguro de eliminar los ${selectedIds.length} productos seleccionados del catálogo?`;
+    if (window.confirm(confirmMsg)) {
+      if (onDeleteProducts) {
+        onDeleteProducts(selectedIds);
+      } else {
+        // Fallback
+        selectedIds.forEach((id) => onDeleteProduct(id));
+      }
+      setSelectedIds([]);
+    }
+  };
 
   // Filter products by name or SKU
   const queriedProducts = React.useMemo(() => {
@@ -71,9 +113,16 @@ export default function AdminView({
     setStock(product.stock.toString());
     setSku(product.sku);
     setImage(product.image);
-    setLargo(product.dimensions?.largo || '');
-    setAncho(product.dimensions?.ancho || '');
-    setAlto(product.dimensions?.alto || '');
+    
+    // Extract numbers if they end with ' cm'
+    const parseDim = (str: string) => {
+      const parsed = parseFloat(str);
+      return isNaN(parsed) ? '' : parsed.toString();
+    };
+    setLargo(parseDim(product.dimensions?.largo || ''));
+    setAncho(parseDim(product.dimensions?.ancho || ''));
+    setAlto(parseDim(product.dimensions?.alto || ''));
+    
     setFormError(null);
     setFormSuccess(null);
   };
@@ -101,18 +150,36 @@ export default function AdminView({
     setFormSuccess(null);
 
     // Validation
-    if (!name || !sku || !price || !stock || !description) {
+    if (!name || !sku || !price || !stock || !description || !largo || !ancho || !alto) {
       setFormError('Por favor llene todos los campos obligatorios indicados (*)');
       return;
     }
     const parsedPrice = parseFloat(price);
     const parsedStock = parseInt(stock);
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
-      setFormError('El precio debe ser un número mayor a cero');
+      setFormError('El precio debe ser un número mayor a cero.');
       return;
     }
     if (isNaN(parsedStock) || parsedStock < 0) {
-      setFormError('La cantidad en stock debe ser cero o superior');
+      setFormError('La cantidad en stock debe ser cero o superior.');
+      return;
+    }
+
+    // Dimension numbers validation: must be string parseable to positive num > 0
+    const numLargo = parseFloat(largo);
+    const numAncho = parseFloat(ancho);
+    const numAlto = parseFloat(alto);
+
+    if (isNaN(numLargo) || numLargo <= 0) {
+      setFormError('El largo de la dimensión debe ser un valor numérico y superior a 0.');
+      return;
+    }
+    if (isNaN(numAncho) || numAncho <= 0) {
+      setFormError('El ancho de la dimensión debe ser un valor numérico y superior a 0.');
+      return;
+    }
+    if (isNaN(numAlto) || numAlto <= 0) {
+      setFormError('El alto de la dimensión debe ser un valor numérico y superior a 0.');
       return;
     }
 
@@ -129,9 +196,9 @@ export default function AdminView({
       description,
       image: defaultImage,
       dimensions: {
-        largo: largo || '100 cm',
-        ancho: ancho || '100 cm',
-        alto: alto || '100 cm'
+        largo: `${numLargo} cm`,
+        ancho: `${numAncho} cm`,
+        alto: `${numAlto} cm`
       }
     };
 
@@ -178,9 +245,21 @@ export default function AdminView({
       {/* Main Table: Left column */}
       <section className="col-span-1 lg:col-span-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h2 className="font-display font-bold text-xl text-gray-800">
-            Inventario Actual
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-display font-bold text-xl text-gray-800">
+              Inventario Actual
+            </h2>
+            {selectedIds.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-650 hover:bg-red-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-all animate-scale-in"
+                id="admin-bulk-delete-btn"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Eliminar seleccionados ({selectedIds.length})
+              </button>
+            )}
+          </div>
           {/* Quick inline search */}
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4.5 h-4.5" />
@@ -200,6 +279,15 @@ export default function AdminView({
           <table className="w-full text-left border-collapse text-sm">
             <thead className="bg-[#f4f3f1] text-[#615e57] border-b border-gray-200">
               <tr>
+                <th className="p-3 text-center w-10">
+                  <input
+                    type="checkbox"
+                    checked={queriedProducts.length > 0 && queriedProducts.every((p) => selectedIds.includes(p.id))}
+                    onChange={handleToggleSelectAll}
+                    className="rounded text-[#1a4d43] focus:ring-[#1a4d43] w-4 h-4 cursor-pointer"
+                    id="checkbox-select-all"
+                  />
+                </th>
                 <th className="p-3.5 font-bold uppercase tracking-wider text-[11px] font-sans">Nombre del Mueble</th>
                 <th className="p-3.5 font-bold uppercase tracking-wider text-[11px] font-sans">SKU</th>
                 <th className="p-3.5 font-bold uppercase tracking-wider text-[11px] font-sans">Categoría</th>
@@ -211,7 +299,7 @@ export default function AdminView({
             <tbody className="divide-y divide-gray-100">
               {queriedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-gray-400">
+                  <td colSpan={7} className="text-center py-12 text-gray-400">
                     No se encontraron productos en el inventario actual.
                   </td>
                 </tr>
@@ -219,19 +307,31 @@ export default function AdminView({
                 queriedProducts.map((product) => {
                   const isCritical = product.stock <= 5;
                   const outOfStock = product.stock === 0;
+                  const isSelected = selectedIds.includes(product.id);
 
                   return (
                     <tr
                       key={product.id}
                       className={`hover:bg-gray-50/50 transition-colors ${
-                        outOfStock 
-                          ? 'bg-gray-100/45' 
-                          : isCritical 
-                            ? 'bg-red-50/15' 
-                            : ''
+                        isSelected
+                          ? 'bg-[#1a4d43]/10'
+                          : outOfStock 
+                            ? 'bg-gray-100/45' 
+                            : isCritical 
+                              ? 'bg-red-50/15' 
+                              : ''
                       }`}
                       id={`row-${product.id}`}
                     >
+                      <td className="p-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(product.id)}
+                          className="rounded text-[#1a4d43] focus:ring-[#1a4d43] w-4 h-4 cursor-pointer"
+                          id={`checkbox-select-${product.id}`}
+                        />
+                      </td>
                       <td className="p-3.5 font-sans font-medium text-gray-900 flex items-center gap-3">
                         <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
                           <img alt={product.name} className="w-full h-full object-cover" src={product.image} />
@@ -434,33 +534,44 @@ export default function AdminView({
 
             {/* Dimensions Specifications inputs */}
             <div className="space-y-2 border-t border-gray-100 pt-3">
-              <span className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider">Dimensiones (Opcional)</span>
+              <span className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                Dimensiones (cm) <span className="text-red-500">*</span>
+              </span>
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <input
-                    type="text"
+                    type="number"
+                    step="any"
+                    min="0.1"
                     value={largo}
                     onChange={(e) => setLargo(e.target.value)}
                     className="w-full bg-[#f4f3f1] border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-800 focus:outline-[#1a4d43]"
-                    placeholder="Largo (Ej: 200 cm)"
+                    placeholder="Largo (cm)"
+                    required
                   />
                 </div>
                 <div>
                   <input
-                    type="text"
+                    type="number"
+                    step="any"
+                    min="0.1"
                     value={ancho}
                     onChange={(e) => setAncho(e.target.value)}
                     className="w-full bg-[#f4f3f1] border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-800 focus:outline-[#1a4d43]"
-                    placeholder="Ancho"
+                    placeholder="Ancho (cm)"
+                    required
                   />
                 </div>
                 <div>
                   <input
-                    type="text"
+                    type="number"
+                    step="any"
+                    min="0.1"
                     value={alto}
                     onChange={(e) => setAlto(e.target.value)}
                     className="w-full bg-[#f4f3f1] border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-800 focus:outline-[#1a4d43]"
-                    placeholder="Alto"
+                    placeholder="Alto (cm)"
+                    required
                   />
                 </div>
               </div>
